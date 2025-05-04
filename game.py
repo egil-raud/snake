@@ -33,16 +33,23 @@ class SnakeGame:
         self.reset_game()
         self.slow_mode = True
         self.setup_database()
+        self.load_effects()  # Загружаем эффекты
         self.golden_apples_eaten = 0
         self.score_multiplier = 1.0
         self.red_apples_eaten = 0
-        self.shrink_chance = 0
+
+    def load_effects(self):
+        self.c.execute("SELECT effect FROM purchased_items WHERE id = 1")
+        if self.c.fetchone():
+            self.shrink_chance = 1
 
     def setup_database(self):
         self.conn = sqlite3.connect('saves.db')
         self.c = self.conn.cursor()
         self.c.execute('''CREATE TABLE IF NOT EXISTS saves
                          (score REAL)''')
+        self.c.execute('''CREATE TABLE IF NOT EXISTS purchased_items
+                         (id INTEGER PRIMARY KEY, effect TEXT)''')
         self.conn.commit()
 
     def reset_game(self):
@@ -125,7 +132,8 @@ class SnakeGame:
 
             # Применяем эффект предмета
             if random.random() >= self.shrink_chance:
-                self.snake.append(self.snake[-1])
+            #    self.snake.append(self.snake[-1])
+                print("rrr")
 
             self.generate_food()
             self.generate_safe_point()

@@ -8,9 +8,17 @@ class Shop:
         self.c = self.conn.cursor()
         self.item_size = 60
         self.setup_items()
+        self.load_purchased_items()  # Загружаем купленные предметы
         self.selected_index = 0
         self.grid_cols = 5
         self.grid_rows = 2
+
+    def load_purchased_items(self):
+        self.c.execute("SELECT id FROM purchased_items")
+        purchased_ids = [row[0] for row in self.c.fetchall()]
+        for item in self.items:
+            if item["id"] in purchased_ids:
+                item["purchased"] = True
 
     def setup_items(self):
         self.items = [
@@ -19,7 +27,7 @@ class Shop:
                 "color": (213, 50, 80),
                 "price": 100,
                 "name": "Случайное сжатие",
-                "description": "10% шанс не увеличиваться\nпри поедании красных яблок",
+                "description": "100% шанс не увеличиваться\nпри поедании красных яблок",
                 "effect": "shrink_chance",
                 "purchased": False
             }
@@ -37,7 +45,8 @@ class Shop:
 
     def get_total_saves(self):
         self.c.execute("SELECT SUM(score) FROM saves")
-        return self.c.fetchone()[0] or 0
+        result = self.c.fetchone()[0]
+        return result if result is not None else 0
 
     def handle_event(self, event, game):
         if event.type == pygame.KEYDOWN:
@@ -64,13 +73,33 @@ class Shop:
 
         total = self.get_total_saves()
         if total >= item["price"]:
-            self.c.execute("DELETE FROM saves WHERE rowid IN (SELECT rowid FROM saves LIMIT ?)",
-                           (item["price"],))
+            # Списываем сумму, равную цене предмета
+            remaining = item["price"]
+            while remaining > 0:
+                self.c.execute("SELECT rowid, score FROM saves ORDER BY rowid LIMIT 1")
+                record = self.c.fetchone()
+                if not record:
+                    break
+                rowid, score = record
+                if score <= remaining:
+                    self.c.execute("DELETE FROM saves WHERE rowid = ?", (rowid,))
+                    remaining -= score
+                else:
+                    # Если запись содержит больше очков, чем нужно, обновляем её
+                    self.c.execute("UPDATE saves SET score = score - ? WHERE rowid = ?", (remaining, rowid))
+                    remaining = 0
+            self.conn.commit()
+
+            # Добавляем предмет в purchased_items
+            self.c.execute("INSERT INTO purchased_items (id, effect) VALUES (?, ?)",
+                           (item["id"], item.get("effect", "")))
             self.conn.commit()
             item["purchased"] = True
 
             if item["id"] == 1:
-                game.shrink_chance = 0.10
+                game.shrink_chance = 1
+
+            print(f"Списание: {item['price']}, осталось: {remaining}")
 
     def draw(self, surface, font, width, height):
         # Фон
