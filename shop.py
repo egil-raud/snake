@@ -27,7 +27,7 @@ class Shop:
                 "color": (213, 50, 80),
                 "price": 100,
                 "name": "Случайное сжатие",
-                "description": "100% шанс не увеличиваться\nпри поедании красных яблок",
+                "description": "20% шанс не увеличиваться\nпри поедании красных яблок",
                 "effect": "shrink_chance",
                 "purchased": False
             }
@@ -97,7 +97,7 @@ class Shop:
             item["purchased"] = True
 
             if item["id"] == 1:
-                game.shrink_chance = 1
+                game.shrink_chance = 0.2
 
             print(f"Списание: {item['price']}, осталось: {remaining}")
 

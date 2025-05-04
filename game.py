@@ -41,7 +41,7 @@ class SnakeGame:
     def load_effects(self):
         self.c.execute("SELECT effect FROM purchased_items WHERE id = 1")
         if self.c.fetchone():
-            self.shrink_chance = 1
+            self.shrink_chance = 0.2
 
     def setup_database(self):
         self.conn = sqlite3.connect('saves.db')
@@ -132,19 +132,19 @@ class SnakeGame:
 
             # Применяем эффект предмета
             if random.random() >= self.shrink_chance:
-            #    self.snake.append(self.snake[-1])
-                print("rrr")
+                self.snake.append(self.snake[-1])
 
             self.generate_food()
             self.generate_safe_point()
+            self.snake.pop()
         elif self.safe_point and new_head == self.safe_point:
             self.save_score()
             self.golden_apples_eaten += 1
             self.score_multiplier = 1.0 + 0.5 * self.golden_apples_eaten
             self.safe_point = None
+            self.snake.pop()
         else:
             self.snake.pop()
-
     def draw_fps_indicator(self):
         size = 15
         x_pos = self.DIS_WIDTH - 40
