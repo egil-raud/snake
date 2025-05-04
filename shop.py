@@ -118,7 +118,7 @@ class Shop:
         panel_width = 400
         panel_height = 150
         x = width // 2 - panel_width // 2
-        y = height - 180
+        y = height - 220
 
         # Фон
         pygame.draw.rect(surface, (40, 40, 40), [x, y, panel_width, panel_height])
