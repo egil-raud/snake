@@ -181,6 +181,14 @@ class SnakeGame:
         )
         self.dis.blit(score_text, [20, 20])
 
+        # Длина змейки
+        length_text = self.FONT_STYLE.render(
+            f"Длина: {len(self.snake)}",
+            True,
+            self.GREEN
+        )
+        self.dis.blit(length_text, [20, 50])
+
     def draw_pause_screen(self):
         overlay = pygame.Surface((self.DIS_WIDTH, self.DIS_HEIGHT), pygame.SRCALPHA)
         overlay.fill(self.GRAY_OVERLAY)
