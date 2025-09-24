@@ -1,21 +1,24 @@
 import pygame
-import sqlite3
-
+from database import DatabaseManager
+from constants import ITEM_SIZE, GRID_COLS, GRID_ROWS, GOLD
 
 class Shop:
     def __init__(self):
-        self.conn = sqlite3.connect('saves.db')
-        self.c = self.conn.cursor()
-        self.item_size = 60
+        self.db = DatabaseManager()
+        self.item_size = ITEM_SIZE
         self.setup_items()
-        self.load_purchased_items()  # Загружаем купленные предметы
+        self.load_purchased_items()
         self.selected_index = 0
-        self.grid_cols = 5
-        self.grid_rows = 2
+        self.grid_cols = GRID_COLS
+        self.grid_rows = GRID_ROWS
+        self.font = pygame.font.SysFont("arial", 20)
+        self.cached_texts = {
+            "title": self.font.render("МАГАЗИН", True, GOLD),
+            "hint": self.font.render("WASD - выбор, SPACE - купить, TAB - выход", True, (200, 200, 200))
+        }
 
     def load_purchased_items(self):
-        self.c.execute("SELECT id FROM purchased_items")
-        purchased_ids = [row[0] for row in self.c.fetchall()]
+        purchased_ids = self.db.load_purchased_items()
         for item in self.items:
             if item["id"] in purchased_ids:
                 item["purchased"] = True
@@ -44,16 +47,13 @@ class Shop:
         ]
 
     def get_total_saves(self):
-        self.c.execute("SELECT SUM(score) FROM saves")
-        result = self.c.fetchone()[0]
-        return result if result is not None else 0
+        return self.db.get_total_saves()
 
     def handle_event(self, event, game):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_TAB:
                 game.in_shop = False
                 return True
-
             if event.key == pygame.K_w and self.selected_index >= self.grid_cols:
                 self.selected_index -= self.grid_cols
             elif event.key == pygame.K_s and self.selected_index < len(self.items) - self.grid_cols:
@@ -70,77 +70,48 @@ class Shop:
         item = self.items[self.selected_index]
         if item["purchased"]:
             return
-
-        total = self.get_total_saves()
-        if total >= item["price"]:
-            # Списываем сумму, равную цене предмета
-            remaining = item["price"]
-            while remaining > 0:
-                self.c.execute("SELECT rowid, score FROM saves ORDER BY rowid LIMIT 1")
-                record = self.c.fetchone()
-                if not record:
-                    break
-                rowid, score = record
-                if score <= remaining:
-                    self.c.execute("DELETE FROM saves WHERE rowid = ?", (rowid,))
-                    remaining -= score
-                else:
-                    # Если запись содержит больше очков, чем нужно, обновляем её
-                    self.c.execute("UPDATE saves SET score = score - ? WHERE rowid = ?", (remaining, rowid))
-                    remaining = 0
-            self.conn.commit()
-
-            # Добавляем предмет в purchased_items
-            self.c.execute("INSERT INTO purchased_items (id, effect) VALUES (?, ?)",
-                           (item["id"], item.get("effect", "")))
-            self.conn.commit()
+        if self.get_total_saves() >= item["price"]:
+            self.db.deduct_score(item["price"])
+            self.db.purchase_item(item["id"], item.get("effect", ""))
             item["purchased"] = True
-
             if item["id"] == 1:
                 game.shrink_chance = 0.2
 
-            print(f"Списание: {item['price']}, осталось: {remaining}")
-
     def draw(self, surface, font, width, height):
-        # Фон
+        self.draw_background(surface, width, height)
+        self.draw_title(surface, width)
+        self.draw_balance(surface, width)
+        self.draw_item_grid(surface, width, height)
+        self.draw_item_info(surface, font, width, height)
+        self.draw_hint(surface, width, height)
+
+    def draw_background(self, surface, width, height):
         overlay = pygame.Surface((width, height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 220))
         surface.blit(overlay, (0, 0))
 
-        # Заголовок
-        title = font.render("МАГАЗИН", True, (255, 215, 0))
-        surface.blit(title, [width // 2 - title.get_width() // 2, 30])
+    def draw_title(self, surface, width):
+        surface.blit(self.cached_texts["title"], [width // 2 - self.cached_texts["title"].get_width() // 2, 30])
 
-        # Баланс
-        balance = font.render(f"Баланс: {self.get_total_saves():.1f}", True, (255, 255, 255))
+    def draw_balance(self, surface, width):
+        balance = self.font.render(f"Баланс: {self.get_total_saves():.1f}", True, (255, 255, 255))
         surface.blit(balance, [width // 2 - balance.get_width() // 2, 70])
 
-        # Сетка предметов
+    def draw_item_grid(self, surface, width, height):
         grid_width = self.grid_cols * (self.item_size + 20)
         start_x = width // 2 - grid_width // 2
         start_y = 150
-
         for i, item in enumerate(self.items):
             row = i // self.grid_cols
             col = i % self.grid_cols
             x = start_x + col * (self.item_size + 20)
             y = start_y + row * (self.item_size + 20)
-
             color = (0, 255, 0) if item["purchased"] else item["color"]
             pygame.draw.rect(surface, color, [x, y, self.item_size, self.item_size])
-
             if i == self.selected_index:
                 pygame.draw.rect(surface, (255, 255, 255), [x - 3, y - 3, self.item_size + 6, self.item_size + 6], 3)
-
-            price_text = font.render(str(item["price"]), True, (0, 0, 0))
+            price_text = self.font.render(str(item["price"]), True, (0, 0, 0))
             surface.blit(price_text, [x + 5, y + 5])
-
-        # Описание выбранного предмета
-        self.draw_item_info(surface, font, width, height)
-
-        # Подсказка
-        hint = font.render("WASD - выбор, SPACE - купить, TAB - выход", True, (200, 200, 200))
-        surface.blit(hint, [width // 2 - hint.get_width() // 2, height - 50])
 
     def draw_item_info(self, surface, font, width, height):
         item = self.items[self.selected_index]
@@ -148,23 +119,16 @@ class Shop:
         panel_height = 150
         x = width // 2 - panel_width // 2
         y = height - 220
-
-        # Фон
         pygame.draw.rect(surface, (40, 40, 40), [x, y, panel_width, panel_height])
         pygame.draw.rect(surface, (100, 100, 100), [x, y, panel_width, panel_height], 2)
-
-        # Текст
         name = font.render(item["name"], True, (255, 255, 255))
         price = font.render(f"Цена: {item['price']}", True, (200, 200, 100))
-
         surface.blit(name, [x + 20, y + 20])
         surface.blit(price, [x + 20, y + 50])
-
-        # Многострочное описание
         desc_lines = item["description"].split('\n')
         for i, line in enumerate(desc_lines):
             desc = font.render(line, True, (200, 200, 200))
             surface.blit(desc, [x + 20, y + 80 + i * 30])
 
-    def __del__(self):
-        self.conn.close()
+    def draw_hint(self, surface, width, height):
+        surface.blit(self.cached_texts["hint"], [width // 2 - self.cached_texts["hint"].get_width() // 2, height - 50])

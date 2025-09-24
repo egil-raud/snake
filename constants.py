@@ -1,0 +1,16 @@
+# Размеры экрана
+DIS_WIDTH = 1920
+DIS_HEIGHT = 1080
+SNAKE_BLOCK = 30
+FONT_SIZE = 20
+ITEM_SIZE = 60
+GRID_COLS = 5
+GRID_ROWS = 2
+
+# Цвета
+BLACK = (0, 0, 0)
+RED = (213, 50, 80)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+GRAY_OVERLAY = (50, 50, 50, 150)
+GOLD = (255, 215, 0)
